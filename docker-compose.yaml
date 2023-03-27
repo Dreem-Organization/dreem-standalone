@@ -1,0 +1,100 @@
+version: "3.9"
+
+services:
+
+  # This can be replace by an external database
+  postgresql:
+    image: docker.io/bitnami/postgresql:13
+    container_name: dreem-standalone-postgresql
+    ports:
+      - '5432:5432'
+    volumes:
+      - 'postgresql_data:/bitnami/postgresql'
+      - './docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d'
+    environment:
+      - 'ALLOW_EMPTY_PASSWORD=yes'
+      - POSTGRESQL_PASSWORD=psql_password
+    networks:
+      - dreem
+
+  # Required for Dreem services to share tasks
+  rabbitmq:
+    image: docker.io/bitnami/rabbitmq:3.11
+    ports:
+      - '4369:4369'
+      - '5551:5551'
+      - '5552:5552'
+      - '5672:5672'
+      - '25672:25672'
+      - '15672:15672'
+    environment:
+      - RABBITMQ_USERNAME=rmq_app_user
+      - RABBITMQ_PASSWORD=rmq_app_password
+      - RABBITMQ_VHOST=/
+      - RABBITMQ_LOGS=-
+    volumes:
+      - 'rabbitmq_data:/bitnami/rabbitmq/mnesia'
+    networks:
+      - dreem
+
+  # Kong (requires kong-migration)
+  kong:
+    image: kong:2.7
+    ports:
+      - '8000:8000'
+      - '8443:8443'
+      - '8001:8001'
+    environment:
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=postgresql
+      - KONG_PG_USER=kong
+      - KONG_PG_PASSWORD=kong
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    networks:
+      - dreem
+    depends_on:
+      - kong-migration
+  
+  # Bootstraps the PostgreSQL database for Kong
+  kong-migration:
+    image: kong:2.7
+    command: "kong migrations bootstrap"
+    networks:
+      - dreem
+    restart: on-failure
+    environment:
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=postgresql
+      - KONG_PG_USER=kong
+      - KONG_PG_PASSWORD=kong
+    depends_on:
+      - postgresql
+
+  # Replaces AWS S3
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      - MINIO_ROOT_USER=minio_user
+      - MINIO_ROOT_PASSWORD=minio_password
+    volumes:
+      - 'minio_data:/data'
+    networks:
+      - dreem
+
+volumes:
+  minio_data:
+    driver: local
+  postgresql_init:
+    driver: local
+  postgresql_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+
+networks:
+  dreem:
+    driver: bridge
