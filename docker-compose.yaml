@@ -70,24 +70,7 @@ services:
     depends_on:
       - postgresql
 
-  # Replaces AWS S3
-  minio:
-    image: quay.io/minio/minio
-    command: server /data --console-address ":9001"
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    environment:
-      - MINIO_ROOT_USER=minio_user
-      - MINIO_ROOT_PASSWORD=minio_password
-    volumes:
-      - 'minio_data:/data'
-    networks:
-      - dreem
-
 volumes:
-  minio_data:
-    driver: local
   postgresql_init:
     driver: local
   postgresql_data:
